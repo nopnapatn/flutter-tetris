@@ -22,7 +22,9 @@ class BoardScreen extends StatefulWidget {
 }
 
 class _BoardScreenState extends State<BoardScreen> {
-  Piece currentPiece = Piece(type: Tetromino.T);
+  Piece currentPiece = Piece(type: Tetromino.L);
+  int currentScore = 0;
+  bool gameOver = false;
 
   @override
   void initState() {
@@ -32,17 +34,56 @@ class _BoardScreenState extends State<BoardScreen> {
 
   void startGame() {
     currentPiece.initializePiece();
-    Duration fps = const Duration(milliseconds: 800);
+    Duration fps = const Duration(milliseconds: 400);
     gameLoop(fps);
   }
 
   void gameLoop(Duration fps) {
     Timer.periodic(fps, (timer) {
       setState(() {
+        clearLine();
         checkLanding();
+        if (gameOver == true) {
+          timer.cancel();
+          showGameOverDialog();
+        }
         currentPiece.movePiece(Direction.down);
       });
     });
+  }
+
+  void showGameOverDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Game Over'),
+        content: Text('Your score is: $currentScore'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              resetGame();
+              Navigator.pop(context);
+            },
+            child: const Text('Play Again'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void resetGame() {
+    gameBoard = List.generate(
+      colLength,
+      (i) => List.generate(
+        rowLength,
+        (j) => null,
+      ),
+    );
+
+    gameOver = false;
+    currentScore = 0;
+    createNewPiece();
+    startGame();
   }
 
   bool checkCollision(Direction direction) {
@@ -85,35 +126,123 @@ class _BoardScreenState extends State<BoardScreen> {
         Tetromino.values[rand.nextInt(Tetromino.values.length)];
     currentPiece = Piece(type: randomType);
     currentPiece.initializePiece();
+
+    if (isGameOver()) {
+      gameOver = true;
+    }
+  }
+
+  void moveLeft() {
+    if (!checkCollision(Direction.left)) {
+      setState(() {
+        currentPiece.movePiece(Direction.left);
+      });
+    }
+  }
+
+  void rotatePiece() {
+    setState(() {
+      currentPiece.raotatePiece();
+    });
+  }
+
+  void moveRight() {
+    if (!checkCollision(Direction.right)) {
+      setState(() {
+        currentPiece.movePiece(Direction.right);
+      });
+    }
+  }
+
+  void clearLine() {
+    for (int row = colLength - 1; row >= 0; row--) {
+      bool rowIsFull = true;
+      for (int col = 0; col < rowLength; col++) {
+        if (gameBoard[row][col] == null) {
+          rowIsFull = false;
+          break;
+        }
+      }
+      if (rowIsFull) {
+        for (int r = row; r > 0; r--) {
+          gameBoard[r] = List.from(gameBoard[r - 1]);
+        }
+        gameBoard[0] = List.generate(row, (index) => null);
+        currentScore++;
+      }
+    }
+  }
+
+  bool isGameOver() {
+    for (int col = 0; col < rowLength; col++) {
+      if (gameBoard[0][col] != null) {
+        return true;
+      }
+    }
+    return false;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: GridView.builder(
-          itemCount: rowLength * colLength,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: rowLength,
+      body: Column(
+        children: [
+          Expanded(
+            child: GridView.builder(
+              itemCount: rowLength * colLength,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: rowLength,
+              ),
+              itemBuilder: (context, index) {
+                int row = (index / rowLength).floor();
+                int col = index % rowLength;
+                if (currentPiece.position.contains(index)) {
+                  return const CustomPixel(
+                    color: Colors.black,
+                  );
+                } else if (gameBoard[row][col] != null) {
+                  return const CustomPixel(
+                    color: Colors.black,
+                  );
+                } else {
+                  return const CustomPixel(
+                    color: Colors.white,
+                  );
+                }
+              },
+            ),
           ),
-          itemBuilder: (context, index) {
-            int row = (index / rowLength).floor();
-            int col = index % rowLength;
-            if (currentPiece.position.contains(index)) {
-              return CustomPixel(
-                color: Colors.black,
-                child: index.toString(),
-              );
-            } else if (gameBoard[row][col] != null) {
-              return const CustomPixel(color: Colors.black, child: '');
-            } else {
-              return CustomPixel(
-                color: Colors.white,
-                child: index.toString(),
-              );
-            }
-          }),
+          Text(
+            'Score: $currentScore',
+            style: const TextStyle(color: Colors.black),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 50.0, bottom: 50.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                IconButton(
+                  onPressed: moveLeft,
+                  icon: const Icon(Icons.arrow_back_ios),
+                  color: Colors.black,
+                ),
+                IconButton(
+                  onPressed: rotatePiece,
+                  icon: const Icon(Icons.rotate_right),
+                  color: Colors.black,
+                ),
+                IconButton(
+                  onPressed: moveRight,
+                  icon: const Icon(Icons.arrow_forward_ios),
+                  color: Colors.black,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
